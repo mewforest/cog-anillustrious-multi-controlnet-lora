@@ -1,6 +1,11 @@
 MIT License
 
-Copyright (c) [year] [fullname]
+This project is a fork of [fofr/cog-sdxl-multi-controlnet-lora](https://github.com/fofr/cog-sdxl-multi-controlnet-lora),
+also MIT-licensed. Both copyright notices apply, per the MIT license's requirement to
+retain the original notice in derivative works.
+
+Copyright (c) 2023 fofrAI
+Copyright (c) 2026 Mew Forest
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
