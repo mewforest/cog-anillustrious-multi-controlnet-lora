@@ -67,6 +67,9 @@ class Predictor(BasePredictor):
     def load_trained_weights(self, weights, pipe):
         self.weights_manager.load_trained_weights(weights, pipe)
 
+    def unload_trained_weights(self, pipe):
+        self.weights_manager.unload_trained_weights(pipe)
+
     def build_controlnet_pipeline(self, pipeline_class, controlnet_models):
         pipe = pipeline_class.from_pretrained(
             SDXL_MODEL_CACHE,
@@ -389,6 +392,11 @@ class Predictor(BasePredictor):
             lora_load_start = time.time()
             self.load_trained_weights(lora_weights, self.txt2img_pipe)
             print(f"lora load took: {time.time() - lora_load_start:.2f}s")
+        elif self.tuned_weights:
+            # A LoRA was applied on a previous prediction on this warm
+            # container but this request didn't ask for one -- don't let it
+            # leak into an unrelated generation.
+            self.unload_trained_weights(self.txt2img_pipe)
 
         # OOMs can leave vae in bad state
         if self.txt2img_pipe.vae.dtype == torch.float32:

@@ -10,7 +10,7 @@ ControlNet, scheduler, img2img/inpaint, optional refiner) is unmodified:
 
 - img2img
 - inpainting
-- custom LoRA loading (`lora_urls` / `lora_scales`)
+- LoRA loading (`lora_weights` / `lora_scale`) — see "LoRA support" below
 - up to 3 simultaneous ControlNets (openpose, canny, depth, ...)
 - img2img plus ControlNet
 - inpainting plus ControlNet
@@ -35,6 +35,26 @@ directly.
 
 License for the checkpoint itself: [`faipl-1.0-sd`](https://freedevproject.org/faipl-1.0-sd/)
 (Fair AI Public License 1.0-SD).
+
+## LoRA support
+
+`lora_weights` accepts a URL to either:
+
+- a plain **community LoRA/LoCon `.safetensors` file** (what ~all Civitai style/character
+  LoRAs are — standard Kohya-format keys), loaded via diffusers' native
+  `pipe.load_lora_weights()`, or
+- a **Replicate-trainer bundle** (the tar produced by Replicate's own SDXL
+  dreambooth+LoRA fine-tuning API: `unet.safetensors`/`lora.safetensors` +
+  `special_params.json` + `embeddings.pti`), loaded via the original fofr hand-rolled
+  path — kept as a fallback, not the primary case for this anime-focused fork.
+
+The format is auto-detected from the downloaded file's content (not the URL), so no
+extra input flag is needed. True LyCORIS algorithms (LoHa/LoKr) are not supported —
+loading one raises a clear error instead of silently applying nothing.
+
+For Civitai LoRA links, append `?token=<your Civitai API key>` (from
+[civitai.com/user/account](https://civitai.com/user/account) → API Keys) to the download
+URL passed as `lora_weights`.
 
 ## Deploying
 
