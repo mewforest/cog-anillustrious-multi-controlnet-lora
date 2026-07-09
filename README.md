@@ -15,6 +15,17 @@ ControlNet, scheduler, img2img/inpaint, optional refiner) is unmodified:
 - img2img plus ControlNet
 - inpainting plus ControlNet
 - ControlNet conditioning strengths, start/end controls
+
+### ControlNet types: `openpose` vs `openpose_raw`
+
+Both use the same SDXL weights (`thibaud/controlnet-openpose-sdxl-1.0`):
+
+| Type | Input image | Preprocessing |
+|------|-------------|---------------|
+| `openpose` | Photograph of a person | Runs `OpenposeDetector` to extract a skeleton |
+| `openpose_raw` | Already-rendered OpenPose skeleton (white limbs on black) | Pass-through — no detector |
+
+Use `openpose_raw` when the caller already drew/exported keypoints (e.g. Miracle Studio's `poses.control_image_b64`). Feeding a finished skeleton to plain `openpose` makes the detector find no person and silently blank the conditioning image.
 - optional SDXL refiner pass
 - image resizing based on width/height, input image, or a control image
 - disable safety checker via API

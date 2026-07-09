@@ -19,6 +19,9 @@ class ControlNet:
         "lineart",
         "lineart_anime",
         "openpose",
+        # Finished OpenPose skeleton image (skip detector). Use when the
+        # caller already rendered keypoints (e.g. Miracle Studio poses.py).
+        "openpose_raw",
         # Preprocessors without an XL model yet
         # "straight_edge_mlsd",
         # "face_detector",
@@ -47,10 +50,17 @@ class ControlNet:
                 self.models[controlnet_name] = self.initialize_controlnet("diffusers/controlnet-depth-sdxl-1.0-small")
             elif controlnet_name.startswith("soft_edge") or controlnet_name.startswith("lineart"):
                 self.models[controlnet_name] = self.initialize_controlnet("SargeZT/controlnet-sd-xl-1.0-softedge-dexined")
-            elif controlnet_name == "openpose":
-                self.models[controlnet_name] = self.initialize_controlnet("thibaud/controlnet-openpose-sdxl-1.0")
+            elif controlnet_name in ("openpose", "openpose_raw"):
+                # Share one loaded instance — same SDXL openpose weights;
+                # openpose_raw only differs in preprocess() (no detector).
+                if "openpose" not in self.models:
+                    self.models["openpose"] = self.initialize_controlnet(
+                        "thibaud/controlnet-openpose-sdxl-1.0"
+                    )
             elif controlnet_name == "illusion":
                 self.models[controlnet_name] = self.initialize_controlnet("monster-labs/control_v1p_sdxl_qrcode_monster")
+        if controlnet_name in ("openpose", "openpose_raw"):
+            return self.models.get("openpose")
         return self.models.get(controlnet_name)
 
     def get_models(self, controlnet_names):
@@ -60,8 +70,9 @@ class ControlNet:
         return list(filter(None, models))
 
     def preprocess(self, image, controlnet_name):
-        # Illusion model needs no preprocessing
-        if controlnet_name == "illusion" or controlnet_name == "none":
+        # Pass-through: illusion/none need no detector; openpose_raw is already
+        # a finished skeleton (not a photo), so OpenposeDetector would blank it.
+        if controlnet_name in ("illusion", "none", "openpose_raw"):
             return image
 
         if self.controlnet_preprocessor is None:
