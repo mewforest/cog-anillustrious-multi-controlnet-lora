@@ -69,8 +69,53 @@ URL passed as `lora_weights`.
 
 ## Deploying
 
+### Replicate (Cog)
+
 Weights are *not* baked into the Docker image — `cog push` builds/pushes code only, and
 the checkpoint is fetched from Hugging Face on first cold boot of the deployed model
 (same pattern the upstream fofr cog uses for stock SDXL). See
 `.github/workflows/push.yaml` (manual `workflow_dispatch`) for the CI build; it needs a
 single repo secret, `REPLICATE_CLI_AUTH_TOKEN`.
+
+### Modal
+
+`modal_app.py` is an independent deployment of the same model on
+[Modal](https://modal.com), for faster cold starts than Replicate's public-model queue.
+It reuses all the business logic in this repo unmodified (`predict.py`, `controlnet.py`,
+`weights_manager.py`, ...) — this is a second entry point, not a replacement for the Cog
+deployment above; `cog.yaml`/`predict.py` keep working exactly as before.
+
+Key differences from the Replicate deployment:
+- The base checkpoint, refiner, safety checker and ControlNet/preprocessor weights are
+  downloaded once at *image build* time and baked into the image (`/weights`), instead of
+  on every cold container — that's what actually causes Replicate's multi-minute cold
+  boot here.
+- Per-request `lora_weights` (arbitrary URLs) still can't be baked in ahead of time, so
+  they're cached on a Modal Volume shared across containers instead of a purely local,
+  per-container disk cache.
+- Dependency stack (torch/diffusers/transformers) is newer than the version pinned in
+  `cog.yaml` for Replicate.
+
+Deploy manually:
+
+```bash
+pip install modal fastapi pydantic
+modal setup            # one-time authentication
+modal deploy modal_app.py
+```
+
+Or via CI: `.github/workflows/modal-deploy.yaml` (manual `workflow_dispatch`), which
+needs two repo secrets, `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` (from
+`modal token new` or your Modal workspace settings).
+
+The deployed endpoint takes a JSON POST body mirroring `predict()`'s inputs (see
+`PredictRequest` in `modal_app.py`) — `image`/`mask`/`controlnet_N_image` accept either a
+URL or a base64-encoded image. It returns a raw PNG for the single-image case, or a JSON
+body with base64-encoded `images`/`control_previews` otherwise:
+
+```bash
+curl -X POST <endpoint-url printed by `modal deploy`> \
+    -H 'Content-Type: application/json' \
+    -d '{"prompt": "a fox in a snowy forest, anime style"}' \
+    --output out.png
+```
