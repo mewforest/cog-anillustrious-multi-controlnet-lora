@@ -45,7 +45,10 @@ class WeightsDownloadCache:
     COMMUNITY_LORA_FILENAME = "weights.safetensors"
 
     def __init__(
-        self, min_disk_free: int = 10 * (2**30), base_dir: str = "/src/weights-cache"
+        self,
+        min_disk_free: int = 10 * (2**30),
+        base_dir: str = "/src/weights-cache",
+        volume=None,
     ):
         """
         WeightsDownloadCache is meant to track and download weights files as fast
@@ -58,9 +61,17 @@ class WeightsDownloadCache:
 
         :param min_disk_free: Minimum disk space required to start download, in bytes.
         :param base_dir: The base directory to store weights files.
+        :param volume: Optional object with `.commit()`/`.reload()` methods (e.g. a
+            `modal.Volume`) backing `base_dir`. When set, the cache is treated as
+            shared across containers: `ensure()` reloads before checking for a hit
+            and commits after a download, so a LoRA fetched by one container is
+            visible to the next one without re-downloading. Left as `None` (the
+            default), this class behaves exactly as it always has -- a plain local
+            directory private to one container -- so nothing changes for Cog/Replicate.
         """
         self.min_disk_free = min_disk_free
         self.base_dir = base_dir
+        self.volume = volume
         self._hits = 0
         self._misses = 0
 
@@ -116,13 +127,26 @@ class WeightsDownloadCache:
         """
         path = self.weights_path(url)
 
+        if self.volume is not None:
+            # Pull in whatever other containers have committed since we last
+            # looked, so a LoRA another container already fetched shows up
+            # as a hit here instead of being downloaded again.
+            self.volume.reload()
+
         if path in self.lru_paths:
             # here we remove to re-add to the end of the LRU (marking it as recently used)
             self._hits += 1
             self.lru_paths.remove(path)
+        elif os.path.exists(path):
+            # Already materialized on disk (e.g. fetched by another container
+            # sharing this volume) even though this process's in-memory LRU
+            # doesn't know about it yet -- adopt it instead of re-downloading.
+            self._hits += 1
         else:
             self._misses += 1
             self.download_weights(url, path)
+            if self.volume is not None:
+                self.volume.commit()
 
         self.lru_paths.append(path)  # Add file to end of cache
         return path

@@ -1,7 +1,16 @@
 import json
 import os
 
-from diffusers.models.attention_processor import LoRAAttnProcessor2_0
+try:
+    # Still present as of diffusers 0.31 (pinned for the Modal deployment),
+    # but diffusers has been folding per-variant attention processors into a
+    # unified one, so a future bump could drop this class. Guarded so
+    # importing this module doesn't hard-fail if that happens -- only the
+    # legacy Replicate-trainer bundle path (rare, superseded by community
+    # LoRA loading) needs it.
+    from diffusers.models.attention_processor import LoRAAttnProcessor2_0
+except ImportError:
+    LoRAAttnProcessor2_0 = None
 from safetensors.torch import load_file
 
 from dataset_and_utils import TokenEmbeddingsHandler
@@ -15,9 +24,9 @@ class UnsupportedLoraError(Exception):
 
 
 class WeightsManager:
-    def __init__(self, predictor):
+    def __init__(self, predictor, weights_cache=None):
         self.predictor = predictor
-        self.weights_cache = WeightsDownloadCache()
+        self.weights_cache = weights_cache if weights_cache is not None else WeightsDownloadCache()
         self._native_lora_loaded = False  # True iff pipe.load_lora_weights() applied something
 
     def load_trained_weights(self, weights, pipe):
@@ -161,6 +170,14 @@ class WeightsManager:
 
         else:
             print("Loading Unet LoRA")
+
+            if LoRAAttnProcessor2_0 is None:
+                raise RuntimeError(
+                    "This diffusers version no longer exposes "
+                    "LoRAAttnProcessor2_0, so legacy Replicate-trainer LoRA "
+                    "bundles (lora.safetensors) can't be loaded here. Use a "
+                    "standard community LoRA .safetensors file instead."
+                )
 
             unet = pipe.unet
 
