@@ -108,7 +108,15 @@ def _bake_controlnet_weights():
 
 image = (
     modal.Image.debian_slim(python_version="3.11")
-    .apt_install("libgl1-mesa-glx", "libsm6", "libxext6", "curl")
+    .apt_install(
+        "libgl1-mesa-glx",
+        "libglib2.0-0",  # libgthread-2.0.so.0 — required by opencv-python
+        "libsm6",
+        "libxext6",
+        "libxrender1",
+        "libgomp1",
+        "curl",
+    )
     .run_commands(
         "curl -o /usr/local/bin/pget -L "
         "https://github.com/replicate/pget/releases/download/v0.0.6/pget "
