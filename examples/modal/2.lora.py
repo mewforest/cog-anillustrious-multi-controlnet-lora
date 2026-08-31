@@ -1,58 +1,59 @@
-"""Persona 5 Illustrious LoRA -- the Replicate prompt plus a real weights URL.
+"""Persona 5 Royal & Strikers cutscene style LoRA, on top of plain txt2img.
 
-The original Replicate run only carried `<lora:...:1>` inside the prompt. This
-model does not parse A1111 tag syntax: that text was just text, and no LoRA was
-ever applied. Loading one takes a .safetensors URL in `lora_weights`.
+Two things to know about how this model takes a LoRA:
 
-Version 1505235 of civitai.com/models/1247653 is the file the tag named:
-Persona_5_Royal_and_Strikers_2D_cutscene_art_style_Illustrious_V2.safetensors.
+1. The `<lora:Name:1>` tag people paste into A1111 prompts means nothing here --
+   it is not parsed, it would just be noise in the prompt. The file goes in
+   `lora_weights` as a URL, and the `:1` weight goes in `lora_scale`.
+2. This particular LoRA has no trigger word (its model card says "None"): the
+   style tags and the character name in the prompt are all it needs.
 
-Civitai serves a login page instead of the file to unauthenticated clients, so
-set CIVITAI_API_TOKEN (civitai.com/user/account -> API Keys), or point
-LORA_WEIGHTS_URL at any other reachable .safetensors.
+The default URL is the HuggingFace mirror, which serves the file to anyone.
+Civitai (model 1247653, version 1505235) hosts the same weights but answers
+unauthenticated clients with a login page, so it needs CIVITAI_API_TOKEN --
+set LORA_WEIGHTS_URL to that (or to any other .safetensors) to override.
 
-The first request for a given LoRA downloads it onto the deployment's shared
-Volume; later requests for the same URL reuse it.
+The first request for a given URL downloads it onto the deployment's shared
+Volume; later requests reuse it.
 """
 
 import os
 
 from _client import run
 
-LORA_VERSION_ID = "1505235"
+HF_LORA_URL = (
+    "https://huggingface.co/LyliaEngine/"
+    "Persona_5_Royal_and_Strikers_2D_cutscene_art_style_Illustrious_V2/resolve/main/"
+    "Persona_5_Royal_and_Strikers_2D_cutscene_art_style_Illustrious_V2.safetensors"
+)
 
 
 def lora_weights_url() -> str:
-    if url := os.environ.get("LORA_WEIGHTS_URL"):
-        return url
-    token = os.environ.get("CIVITAI_API_TOKEN")
-    if not token:
-        raise SystemExit(
-            "Set CIVITAI_API_TOKEN or LORA_WEIGHTS_URL. "
-            "Token: civitai.com/user/account -> API Keys."
-        )
-    return (
-        f"https://civitai.com/api/download/models/{LORA_VERSION_ID}"
-        f"?type=Model&format=SafeTensor&token={token}"
-    )
+    return os.environ.get("LORA_WEIGHTS_URL", HF_LORA_URL)
 
 
 if __name__ == "__main__":
     run(
         {
+            # Prompt and negative prompt as given on the LoRA's model card,
+            # minus the <lora:...:1> tag -- see the note at the top.
             "prompt": (
-                "anime coloring, anime screencap, from above, "
-                "1girl, solo, from side, head tilt, 18yo, laboratory, "
-                "aegis_(persona), persona, blonde_hair, blue_eyes, robot, "
-                "white outfit, neutral expression, nail polish, frilled choker, "
-                "bow, bare shoulders, black dress, thighhighs, cross legs, "
-                "one hand on knee (looking at viewer), dynamic pose, "
-                "(depth of field), cool blue theme, yellow highlight, "
-                "masterpiece, best quality, amazing quality"
+                "masterpiece, anime screencap, anime coloring, official art, "
+                "Ann Takamaki"
             ),
             "negative_prompt": (
-                "blurry, lowres, bad anatomy, extra fingers, watermark, "
-                "text, multiple people"
+                "bad anatomy, poorly drawn face, bad hands, morbid, deformed, "
+                "disfigured, mutilated, malformed, missing body part, error, "
+                "malformed hands, legs, bad feet, fused legs, broken legs, "
+                "bad eyes, censored, bad body proportions, bad face, "
+                "bad facial expression, gross proportions, bad abs, "
+                "disappearing hands, fused hands, fused body part, fused digits, "
+                "missing digit, extra digit, hand with more than 5 digits, "
+                "hand with less than 5 digits, bad pecs, 3D character, "
+                "photo realistic, 3D game, 3D, cropped, watermark, username, "
+                "signature, not in perspective, bad artist, bad background, ugly, "
+                "jpeg artifacts, squares, faded, worst quality, blurred, lowres, "
+                "low quality, bad quality, plain pose, plain figure"
             ),
             "width": 832,
             "height": 1216,
@@ -64,7 +65,7 @@ if __name__ == "__main__":
             "prompt_strength": 0.8,
             "refine": "no_refiner",
             "apply_watermark": True,
-            "lora_scale": 0.6,
+            "lora_scale": 1.0,  # the ":1" from the model card's <lora:...:1>
             "lora_weights": lora_weights_url(),
         },
         stem="lora",

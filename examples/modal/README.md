@@ -24,7 +24,7 @@ Images land in `out/`. Each script sends exactly one request and never retries.
 | --- | --- |
 | `MODAL_PREDICT_URL` | endpoint URL, if it differs from the default in `_client.py` |
 | `MODAL_PROXY` | proxy to dial through; `off` connects directly. Defaults to v2rayNG's mixed inbound, `http://127.0.0.1:10808` |
-| `CIVITAI_API_TOKEN` | needed by `2.lora.py` — Civitai serves a login page without one |
+| `CIVITAI_API_TOKEN` | only if you point `LORA_WEIGHTS_URL` at a Civitai download link — it serves a login page without one |
 | `LORA_WEIGHTS_URL` | use a different LoRA in `2.lora.py` |
 
 ```bash
