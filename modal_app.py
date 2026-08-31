@@ -236,26 +236,51 @@ def _materialize_image_input(value: str) -> str:
     min_containers=MIN_CONTAINERS,
     scaledown_window=SCALEDOWN_WINDOW,
     timeout=600,
+    # One request means one attempt: a failed prediction comes back to the
+    # caller as an error, it is never re-run. (This only covers exceptions
+    # raised *inside* predict() -- a container that crashes is rescheduled by
+    # Modal regardless of this setting, which is why load() below refuses to
+    # raise.)
+    retries=0,
     enable_memory_snapshot=True,
     experimental_options=({"enable_gpu_snapshot": True} if ENABLE_GPU_SNAPSHOT else {}),
 )
 class IllustriousXLModel:
     @modal.enter(snap=True)
     def load(self):
+        """Never raises.
+
+        Anything thrown out of a lifecycle method kills the container, and
+        Modal responds by rescheduling the container *and the work it was
+        assigned* -- for a deployed App, indefinitely
+        (https://modal.com/docs/guide/retries). A setup bug therefore turns a
+        single request into an unbounded start/crash/restart loop that keeps
+        booting GPU containers, and cancelling the function call does not stop
+        the attempts that are already queued -- it has to be killed by hand
+        from the dashboard while billing runs.
+
+        So the failure is caught and remembered here instead, and predict()
+        reports it as a plain HTTP error: one request, one container, one
+        answer. The recorded error survives into the memory snapshot, so once
+        setup is broken every container answers 503 immediately (cheap) until
+        the cause is fixed and the app is redeployed.
+        """
+        self._setup_error = None
+        try:
+            self._setup()
+        except Exception as e:
+            import traceback
+
+            traceback.print_exc()
+            self._setup_error = f"{type(e).__name__}: {e}"
+
+    def _setup(self):
         os.chdir(CACHE_ROOT)
 
         from predict import Predictor
-        from weights import WeightsDownloadCache
 
         self.predictor = Predictor()
         self.predictor.setup()
-
-        # setup() above builds the default plain-local-disk LoRA cache
-        # (weights_manager.py); swap in the Volume-backed one so LoRA
-        # downloads survive container restarts and are shared across them.
-        self.predictor.weights_manager.weights_cache = WeightsDownloadCache(
-            base_dir=LORA_CACHE_DIR, volume=lora_volume
-        )
 
         # Calling a Cog Predictor directly (bypassing cog's own HTTP layer)
         # means an unset kwarg falls back to the raw cog.Input(...)
@@ -277,15 +302,53 @@ class IllustriousXLModel:
             if name != "self"
         }
 
+    @modal.enter(snap=False)
+    def attach_lora_cache(self):
+        """Runs after a snapshot restore, once per container.
+
+        setup() built the default plain-local-disk LoRA cache
+        (weights_manager.py); this swaps in the Volume-backed one so LoRA
+        downloads survive container restarts and are shared across containers.
+        It deliberately lives outside the snapshotted method: the modal.Volume
+        handle and the directory listing the cache reads when constructed are
+        live per-container state, not something to freeze into an image-wide
+        snapshot.
+        """
+        if self._setup_error is not None:
+            return
+
+        from weights import WeightsDownloadCache
+
+        self.predictor.weights_manager.weights_cache = WeightsDownloadCache(
+            base_dir=LORA_CACHE_DIR, volume=lora_volume
+        )
+
     @modal.fastapi_endpoint(method="POST")
     def predict(self, request: PredictRequest):
         from fastapi import HTTPException
         from fastapi.responses import JSONResponse, Response
 
+        if self._setup_error is not None:
+            # See load(): a setup failure is reported, not crashed on.
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "model setup failed on this container, so no prediction can "
+                    f"run: {self._setup_error}. Fix the cause and redeploy."
+                ),
+            )
+
         overrides = request.model_dump(exclude_none=True)
         for field in IMAGE_INPUT_FIELDS:
             if field in overrides:
-                overrides[field] = _materialize_image_input(overrides[field])
+                try:
+                    overrides[field] = _materialize_image_input(overrides[field])
+                except Exception as e:
+                    # Bad/expired image URL is the caller's problem, not a
+                    # server error -- say so rather than returning a 500.
+                    raise HTTPException(
+                        status_code=400, detail=f"could not read {field}: {e}"
+                    ) from e
 
         kwargs = {**self._predict_defaults, **overrides}
 
