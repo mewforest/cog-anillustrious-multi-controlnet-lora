@@ -119,3 +119,10 @@ curl -X POST <endpoint-url printed by `modal deploy`> \
     -d '{"prompt": "a fox in a snowy forest, anime style"}' \
     --output out.png
 ```
+
+`examples/modal/` has ready-to-run Python versions of that call — plain txt2img,
+ControlNet and LoRA — including proxy handling and saving both response shapes.
+
+A prediction is attempted exactly once. Errors come back as HTTP status codes: 400
+for bad input (an unreachable image URL, an unloadable LoRA), 503 if the model
+itself failed to load, which needs a fix and a redeploy.
