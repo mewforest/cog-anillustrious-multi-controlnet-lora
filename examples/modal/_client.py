@@ -7,10 +7,10 @@ another project's venv leaks an ancient typing_extensions onto sys.path.
 Nothing here retries. One run of a script sends exactly one request, so a
 failure costs one container, not a stream of them.
 
-Environment overrides:
+Config lives in `.env` (see `.env.example`), loaded automatically:
     MODAL_PREDICT_URL   endpoint URL (default below)
-    MODAL_PROXY         proxy URL, or "off" to connect directly
-                        (default: v2rayNG's mixed inbound on 127.0.0.1:10808)
+    MODAL_PROXY         proxy URL to dial through, e.g. http://127.0.0.1:8080;
+                        unset or empty connects directly
 """
 
 from __future__ import annotations
@@ -23,6 +23,9 @@ from pathlib import Path
 
 import certifi
 import httpx
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 # Modal derives the hostname from workspace + app + class + method, which here
 # comes to 74 characters -- longer than the 63 a DNS label allows -- so it
@@ -32,7 +35,6 @@ import httpx
 DEFAULT_URL = (
     "https://mew-forest--anillustrious-multi-controlnet-lora-illustri-82bbe6.modal.run"
 )
-DEFAULT_PROXY = "http://127.0.0.1:10808"
 OUT_DIR = Path(__file__).resolve().parent / "out"
 
 # The endpoint's own limit is 600s; wait a little longer so a server-side
@@ -47,7 +49,7 @@ def predict_url() -> str:
 
 
 def proxy_url() -> str | None:
-    raw = os.environ.get("MODAL_PROXY", DEFAULT_PROXY)
+    raw = os.environ.get("MODAL_PROXY", "")
     if raw.strip().lower() in ("", "0", "off", "false", "none", "no"):
         return None
     return raw
@@ -65,15 +67,16 @@ def run(payload: dict, stem: str) -> list[Path]:
             proxy=proxy,
             timeout=TIMEOUT_S,
             verify=certifi.where(),
-            trust_env=False,  # ignore any HTTPS_PROXY left over in the shell
+            trust_env=False,  # ignore any HTTPS_PROXY leftover in the shell
         ) as client:
             resp = client.post(url, json=payload)
     except httpx.ConnectError as e:
         hint = (
-            f"could not reach the proxy at {proxy} -- is v2rayNG running? "
-            "Run with MODAL_PROXY=off to connect directly."
+            f"could not reach the proxy at {proxy} -- is it running? "
+            "Set MODAL_PROXY=off in .env to connect directly."
             if proxy
-            else "could not reach the endpoint directly; try MODAL_PROXY=http://127.0.0.1:10808"
+            else "could not reach the endpoint directly; if you're behind a "
+            "VPN/firewall, set MODAL_PROXY in .env (see .env.example)."
         )
         raise SystemExit(f"{e}\n{hint}") from e
 

@@ -10,6 +10,7 @@ Three scripts against the deployed endpoint, in the order worth running them:
 
 ```bash
 pip install -r requirements.txt
+cp .env.example .env   # edit if you need a proxy or a different endpoint
 python 3.txt2img.py
 ```
 
@@ -20,12 +21,18 @@ Images land in `out/`. Each script sends exactly one request and never retries.
 
 ## Environment
 
+Config lives in `.env` (copy `.env.example` to get started) and loads
+automatically — nothing to export by hand. `.env` is gitignored, since it's
+the place for anything machine-specific.
+
 | Variable | Purpose |
 | --- | --- |
 | `MODAL_PREDICT_URL` | endpoint URL, if it differs from the default in `_client.py` |
-| `MODAL_PROXY` | proxy to dial through; `off` connects directly. Defaults to v2rayNG's mixed inbound, `http://127.0.0.1:10808` |
+| `MODAL_PROXY` | proxy to dial through, e.g. `http://127.0.0.1:8080`. Unset or empty connects directly |
 | `CIVITAI_API_TOKEN` | only if you point `LORA_WEIGHTS_URL` at a Civitai download link — it serves a login page without one |
 | `LORA_WEIGHTS_URL` | use a different LoRA in `2.lora.py` |
+
+A one-off override without touching `.env`:
 
 ```bash
 MODAL_PROXY=off python 3.txt2img.py
