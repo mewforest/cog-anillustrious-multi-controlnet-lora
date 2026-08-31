@@ -129,6 +129,12 @@ image = (
         "diffusers==0.31.0",
         "transformers==4.46.3",
         "accelerate==1.1.1",
+        # diffusers 0.31 routes load_lora_weights() exclusively through the
+        # PEFT backend and raises "PEFT backend is required for this method"
+        # without it. (Replicate's diffusers 0.21.4 predates that and uses its
+        # own loader, which is why cog.yaml doesn't list peft.) The backend
+        # switches on at peft >= 0.6 + transformers >= 4.34.
+        "peft==0.13.2",
         "invisible-watermark==0.2.0",
         "numpy==1.26.4",
         "opencv-python-headless>=4.1.0.25",
