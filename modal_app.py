@@ -57,7 +57,7 @@ LORA_VOLUME_NAME = "anillustrious-lora-cache"
 
 GPU_TYPE = "A10G"  # bump to "L40S" / "A100" if generation speed matters more than cost
 MIN_CONTAINERS = 0  # set to 1+ to keep a container permanently warm (no cold starts, but billed idle time)
-SCALEDOWN_WINDOW = 5 * 60  # seconds a warm container is kept around after its last request
+SCALEDOWN_WINDOW = 2  # seconds a warm container is kept around after its last request (2s = Modal's allowed minimum; every request pays cold start, but no idle-tail billing -- set for a fair per-call cost benchmark against Replicate's public-model pricing, not for production traffic)
 
 # GPU memory snapshotting is an experimental Modal feature that restores
 # already-initialized GPU state instead of re-loading+moving weights on cold
