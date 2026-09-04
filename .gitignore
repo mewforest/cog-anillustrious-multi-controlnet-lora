@@ -23,3 +23,5 @@ __*.zip
 **-cache
 examples/modal/.env
 examples/modal/out/
+benchmarks/.env
+benchmarks/results/

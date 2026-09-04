@@ -68,6 +68,10 @@ def run(payload: dict, stem: str) -> list[Path]:
             timeout=TIMEOUT_S,
             verify=certifi.where(),
             trust_env=False,  # ignore any HTTPS_PROXY leftover in the shell
+            follow_redirects=True,  # a long-running call can come back as a 303
+            # (proxy/gateway timeout on the underlying connection); httpx doesn't
+            # follow redirects by default, which silently turns that into an
+            # empty response instead of the real image.
         ) as client:
             resp = client.post(url, json=payload)
     except httpx.ConnectError as e:

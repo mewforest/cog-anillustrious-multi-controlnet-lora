@@ -126,3 +126,31 @@ ControlNet and LoRA — including proxy handling and saving both response shapes
 A prediction is attempted exactly once. Errors come back as HTTP status codes: 400
 for bad input (an unreachable image URL, an unloadable LoRA), 503 if the model
 itself failed to load, which needs a fix and a redeploy.
+
+### Modal vs Replicate: cold start & cost
+
+Same `predict.py`, same checkpoint, same LoRA, same prompt — five scenarios, one
+request per platform per scenario. Full methodology, raw data, and generated
+images in `benchmarks/` (gitignored, run locally to reproduce).
+
+| Scenario | Modal | Replicate |
+|---|---|---|
+| Checkpoint only | 21s · $0.011 | 100s · <$0.01 |
+| + LoRA | 32s · $0.014 | 135s · $0.046 |
+| + ControlNet pose (tuned) | 28s · $0.008 | 104s · $0.031 |
+| + LoRA from a second source | 31s · $0.027 | 125s · $0.014 |
+
+- **Modal is consistently 3–4x faster** across every scenario — cold-start
+  scheduling, not raw GPU speed, dominates the gap.
+- **LoRA cost is where the platforms really diverge.** Modal caches downloaded
+  LoRA weights on a persistent Volume once; Replicate re-downloads them on every
+  cold container, and that download time is billed as active compute. The gap
+  grows with how many distinct LoRAs a deployment cycles through.
+- **Without a LoRA, Replicate is the cheaper option** — a public Replicate model
+  isn't billed for cold start or idle time at all, only active inference; Modal
+  bills the deployer for full container uptime, so a single infrequent call pays
+  for its own cold boot either way.
+- **One config knob swings Modal's cost by ~9x**: `SCALEDOWN_WINDOW` (how long an
+  idle container stays warm, billed, waiting for reuse) trades idle billing
+  against cold-start frequency. Tune it to actual traffic patterns, not the
+  60s/5min defaults.
