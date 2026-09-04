@@ -157,13 +157,22 @@ class Predictor(BasePredictor):
         WeightsDownloader.download_if_not_exists(REFINER_URL, REFINER_MODEL_CACHE)
 
         print("Loading refiner pipeline...")
+        # No variant="fp16" here on purpose: REFINER_URL's tarball only ships
+        # unsuffixed weights (unet/diffusion_pytorch_model.safetensors -- there
+        # is no *.fp16.safetensors in it). diffusers <= 0.21 answered a missing
+        # variant with a warning and silently loaded those same default files;
+        # 0.31 turned that into a hard ValueError ("You are trying to load the
+        # model files of the variant=fp16, but no such modeling files are
+        # available"), which crashed setup() on the Modal deployment. Dropping
+        # the argument loads byte-for-byte the file both versions were already
+        # using, so Replicate/Cog behaviour is unchanged. torch_dtype below is
+        # what actually makes the weights fp16.
         self.refiner = DiffusionPipeline.from_pretrained(
             REFINER_MODEL_CACHE,
             text_encoder_2=self.txt2img_pipe.text_encoder_2,
             vae=self.txt2img_pipe.vae,
             torch_dtype=torch.float16,
             use_safetensors=True,
-            variant="fp16",
         )
         self.refiner.to("cuda")
 

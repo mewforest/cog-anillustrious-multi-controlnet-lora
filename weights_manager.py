@@ -118,10 +118,20 @@ class WeightsManager:
         # the file's key layout doesn't match what diffusers' Kohya converter
         # expects (this is how LyCORIS LoHa/LoKr silently no-ops in this
         # diffusers version). Detect that and turn it into a clear error.
+        #
+        # Both ways of applying a LoRA have to be recognised, because diffusers
+        # picks one by backend:
+        #   - legacy (diffusers 0.21.4, Cog/Replicate): the UNet's attention
+        #     processors are swapped for LoRA-aware ones;
+        #   - PEFT backend (diffusers 0.31 + peft, Modal): the attention
+        #     processors are left as AttnProcessor2_0 and lora_A/lora_B layers
+        #     are injected into the modules instead.
+        # Checking only the first would report every LoRA that loaded
+        # perfectly on the PEFT backend as unsupported, and unload it.
         applied = any(
             "lora" in type(proc).__name__.lower()
             for proc in pipe.unet.attn_processors.values()
-        )
+        ) or any(getattr(module, "lora_A", None) for module in pipe.unet.modules())
         if not applied:
             pipe.unload_lora_weights()
             raise UnsupportedLoraError(
