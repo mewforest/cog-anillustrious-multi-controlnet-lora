@@ -1,13 +1,15 @@
 """POST a PredictRequest to the deployed Modal web endpoint.
 
 Deliberately does not import the `modal` SDK: it isn't needed to call a public
-web endpoint, and on at least one machine `import modal` blows up because
+web endpoint (proxy auth is just two headers), and on at least one machine `import modal` blows up because
 another project's venv leaks an ancient typing_extensions onto sys.path.
 
 Nothing here retries. One run of a script sends exactly one request, so a
 failure costs one container, not a stream of them.
 
 Config lives in `.env` (see `.env.example`), loaded automatically:
+    MODAL_KEY           proxy auth token id (wk-...), required
+    MODAL_SECRET        proxy auth token secret (ws-...), required
     MODAL_PREDICT_URL   endpoint URL (default below)
     MODAL_PROXY         proxy URL to dial through, e.g. http://127.0.0.1:8080;
                         unset or empty connects directly
@@ -48,6 +50,22 @@ def predict_url() -> str:
     return os.environ.get("MODAL_PREDICT_URL", DEFAULT_URL)
 
 
+def auth_headers() -> dict[str, str]:
+    """The endpoint is declared `requires_proxy_auth=True`, so Modal answers
+    401 before starting a GPU container. The URL above is not a secret; this
+    token pair is. Create one at Modal dashboard -> Settings -> Proxy Auth
+    Tokens."""
+    key = os.environ.get("MODAL_KEY", "")
+    secret = os.environ.get("MODAL_SECRET", "")
+    if not key or not secret:
+        raise SystemExit(
+            "MODAL_KEY / MODAL_SECRET are not set. Create a proxy auth token in "
+            "the Modal dashboard (Settings -> Proxy Auth Tokens) and put both "
+            "values in examples/modal/.env -- see .env.example."
+        )
+    return {"Modal-Key": key, "Modal-Secret": secret}
+
+
 def proxy_url() -> str | None:
     raw = os.environ.get("MODAL_PROXY", "")
     if raw.strip().lower() in ("", "0", "off", "false", "none", "no"):
@@ -73,7 +91,7 @@ def run(payload: dict, stem: str) -> list[Path]:
             # follow redirects by default, which silently turns that into an
             # empty response instead of the real image.
         ) as client:
-            resp = client.post(url, json=payload)
+            resp = client.post(url, json=payload, headers=auth_headers())
     except httpx.ConnectError as e:
         hint = (
             f"could not reach the proxy at {proxy} -- is it running? "

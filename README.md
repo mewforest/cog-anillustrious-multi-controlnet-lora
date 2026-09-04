@@ -115,17 +115,36 @@ body with base64-encoded `images`/`control_previews` otherwise:
 
 ```bash
 curl -X POST <endpoint-url printed by `modal deploy`> \
+    -H "Modal-Key: $MODAL_KEY" -H "Modal-Secret: $MODAL_SECRET" \
     -H 'Content-Type: application/json' \
     -d '{"prompt": "a fox in a snowy forest, anime style"}' \
     --output out.png
 ```
 
+#### Authentication
+
+The endpoint is declared `requires_proxy_auth=True`, so every call must send a
+Modal **proxy auth token** as the `Modal-Key` / `Modal-Secret` header pair.
+Create one at [modal.com/settings](https://modal.com/settings) → Proxy Auth
+Tokens; put the two values in `MODAL_KEY` / `MODAL_SECRET` (see the
+`.env.example` files under `benchmarks/` and `examples/modal/`). Modal rejects
+an unauthenticated request *before* a GPU container starts, so a rejected call
+costs nothing.
+
+Without this the URL is an open GPU: anyone who learns it can spend the
+workspace's money. Note that the endpoint URL **is not a secret and is not
+treated as one** — it is hardcoded in this repo's clients and printed by
+`modal deploy`. Modal derives it from workspace/app/class names, so it is
+guessable in principle. The token pair is the secret; do not rewrite git
+history to hide a URL, fix access with auth instead.
+
 `examples/modal/` has ready-to-run Python versions of that call — plain txt2img,
 ControlNet and LoRA — including proxy handling and saving both response shapes.
 
-A prediction is attempted exactly once. Errors come back as HTTP status codes: 400
-for bad input (an unreachable image URL, an unloadable LoRA), 503 if the model
-itself failed to load, which needs a fix and a redeploy.
+A prediction is attempted exactly once. Errors come back as HTTP status codes: 401
+for a missing or wrong proxy auth token, 400 for bad input (an unreachable image
+URL, an unloadable LoRA), 503 if the model itself failed to load, which needs a
+fix and a redeploy.
 
 ### Modal vs Replicate: cold start & cost
 

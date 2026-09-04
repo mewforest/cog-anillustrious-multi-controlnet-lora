@@ -329,7 +329,12 @@ class IllustriousXLModel:
             base_dir=LORA_CACHE_DIR, volume=lora_volume
         )
 
-    @modal.fastapi_endpoint(method="POST")
+    # requires_proxy_auth: without it this URL is an open GPU — anyone who
+    # learns it can spend the workspace's money. The URL is not a secret and
+    # is committed in this repo's clients; the Modal-Key / Modal-Secret proxy
+    # token pair is. Create one in the Modal dashboard under
+    # Settings -> Proxy Auth Tokens and send both headers on every call.
+    @modal.fastapi_endpoint(method="POST", requires_proxy_auth=True)
     def predict(self, request: PredictRequest):
         from fastapi import HTTPException
         from fastapi.responses import JSONResponse, Response

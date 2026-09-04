@@ -27,6 +27,25 @@ def modal_predict_url() -> str:
     return os.environ.get("MODAL_PREDICT_URL", MODAL_DEFAULT_URL)
 
 
+def modal_auth_headers() -> dict[str, str]:
+    """Proxy-auth headers for the Modal endpoint.
+
+    The endpoint is declared `requires_proxy_auth=True`, so Modal rejects an
+    unauthenticated request before any GPU container starts. The endpoint URL
+    is not a secret (it is hardcoded above and committed); this token pair is.
+    Create one at Modal dashboard -> Settings -> Proxy Auth Tokens.
+    """
+    key = os.environ.get("MODAL_KEY", "")
+    secret = os.environ.get("MODAL_SECRET", "")
+    if not key or not secret:
+        raise SystemExit(
+            "MODAL_KEY / MODAL_SECRET are not set. Create a proxy auth token in "
+            "the Modal dashboard (Settings -> Proxy Auth Tokens) and put both "
+            "values in benchmarks/.env -- see .env.example."
+        )
+    return {"Modal-Key": key, "Modal-Secret": secret}
+
+
 def modal_proxy() -> str | None:
     raw = os.environ.get("MODAL_PROXY", "")
     if raw.strip().lower() in ("", "0", "off", "false", "none", "no"):

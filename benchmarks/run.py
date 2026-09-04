@@ -50,7 +50,7 @@ def call_modal(payload: dict) -> tuple[dict, list[bytes]]:
         # does not follow redirects by default, and swallowing that silently meant
         # an earlier run saved an empty 0-byte PNG instead of the real image.
     ) as client:
-        resp = client.post(url, json=payload)
+        resp = client.post(url, json=payload, headers=common.modal_auth_headers())
     t1 = time.time()
     t1_iso = datetime.now(timezone.utc).isoformat()
 

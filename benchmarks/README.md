@@ -10,11 +10,14 @@ reshaping the harness -- see "Adding a service" below.
 ```bash
 pip install -r benchmarks/requirements.txt
 cp benchmarks/.env.example benchmarks/.env
-# edit benchmarks/.env: REPLICATE_API_TOKEN, REPLICATE_MODEL, MODAL_PROXY
+# edit benchmarks/.env: MODAL_KEY, MODAL_SECRET, REPLICATE_API_TOKEN,
+#                       REPLICATE_MODEL, MODAL_PROXY
 ```
 
-`benchmarks/.env` is gitignored -- it holds the Replicate token and any
-proxy config, never commit it.
+`benchmarks/.env` is gitignored -- it holds the Modal proxy auth token, the
+Replicate token and any proxy config, never commit it. The Modal endpoint is
+deployed with `requires_proxy_auth=True`, so `MODAL_KEY`/`MODAL_SECRET` are
+required: create the pair at modal.com/settings -> Proxy Auth Tokens.
 
 ## Running
 
